@@ -173,18 +173,22 @@ public class MQClientInstance {
 
             info.setOrderTopic(true);
         } else {
+           //路由查找关键代码
             List<QueueData> qds = route.getQueueDatas();
             Collections.sort(qds);
             for (QueueData qd : qds) {
+                //遍历QueueDatas
                 if (PermName.isWriteable(qd.getPerm())) {
+                    //如果没有写权限，则遍历下一个
                     BrokerData brokerData = null;
                     for (BrokerData bd : route.getBrokerDatas()) {
+                        //遍历所有BrokerData，根据brokerName找到对应的brokerData
                         if (bd.getBrokerName().equals(qd.getBrokerName())) {
                             brokerData = bd;
                             break;
                         }
                     }
-
+                    //找不到或者没有找到master节点则遍历下一个
                     if (null == brokerData) {
                         continue;
                     }
@@ -194,6 +198,7 @@ public class MQClientInstance {
                     }
 
                     for (int i = 0; i < qd.getWriteQueueNums(); i++) {
+                        //最后根据序号+topic创建messageQueue填充到TopicPublishInfo的messageQueueList中
                         MessageQueue mq = new MessageQueue(topic, qd.getBrokerName(), i);
                         info.getMessageQueueList().add(mq);
                     }
@@ -602,15 +607,25 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 更新主题路由信息
+     * @param topic
+     * @param isDefault
+     * @param defaultMQProducer
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
+                    //1.根据isDefault和defaultMQProducer取对应的路由信息
+                    //如果isDefault为true，则使用默认主题去查询到路由信息
                     if (isDefault && defaultMQProducer != null) {
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(),
                             1000 * 3);
+                        //如果查询到了topicRouteData，则queueNums设置为消息生产者默认队列数
                         if (topicRouteData != null) {
                             for (QueueData data : topicRouteData.getQueueDatas()) {
                                 int queueNums = Math.min(defaultMQProducer.getDefaultTopicQueueNums(), data.getReadQueueNums());
@@ -619,10 +634,13 @@ public class MQClientInstance {
                             }
                         }
                     } else {
+                        //isDefault为false，则通过topic去取。
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
+                    //2.如果取到了，则与本地缓存的路由信息进行比较，取最新的路由信息
                     if (topicRouteData != null) {
                         TopicRouteData old = this.topicRouteTable.get(topic);
+                        //与本地缓存的路由信息进行对比，检查是否改变
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
                         if (!changed) {
                             changed = this.isNeedUpdateTopicRouteInfo(topic);
@@ -637,8 +655,9 @@ public class MQClientInstance {
                                 this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
                             }
 
-                            // Update Pub info
+                            // Update Pub info 3.更新需要发送的消息  主题发送消息注册表注册该topic以及对应的主题发送消息 topicPublishInfoTable.put(topic, info);
                             {
+                                //topicRouteData2TopicPublishInfo将TopicRouteData转成TopicPublishInfo
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
                                 publishInfo.setHaveTopicRouterInfo(true);
                                 Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
@@ -651,7 +670,7 @@ public class MQClientInstance {
                                 }
                             }
 
-                            // Update sub info
+                            // Update sub info 订阅消息
                             {
                                 Set<MessageQueue> subscribeInfo = topicRouteData2TopicSubscribeInfo(topic, topicRouteData);
                                 Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
@@ -664,6 +683,7 @@ public class MQClientInstance {
                                 }
                             }
                             log.info("topicRouteTable.put. Topic = {}, TopicRouteData[{}]", topic, cloneTopicRouteData);
+                            //主题路由注册表注册该主题以及对应主题路由信息
                             this.topicRouteTable.put(topic, cloneTopicRouteData);
                             return true;
                         }
