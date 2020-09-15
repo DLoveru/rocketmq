@@ -435,12 +435,15 @@ public class RouteInfoManager {
     public void scanNotActiveBroker() {
         Iterator<Entry<String, BrokerLiveInfo>> it = this.brokerLiveTable.entrySet().iterator();
         while (it.hasNext()) {
+            //遍历所有的存活的broker
             Entry<String, BrokerLiveInfo> next = it.next();
             long last = next.getValue().getLastUpdateTimestamp();
             if ((last + BROKER_CHANNEL_EXPIRED_TIME) < System.currentTimeMillis()) {
+                //如果当前时间超过上次更新时间120秒
                 RemotingUtil.closeChannel(next.getValue().getChannel());
                 it.remove();
                 log.warn("The broker channel expired, {} {}ms", next.getKey(), BROKER_CHANNEL_EXPIRED_TIME);
+                //关闭管道
                 this.onChannelDestroy(next.getKey(), next.getValue().getChannel());
             }
         }
@@ -479,21 +482,23 @@ public class RouteInfoManager {
 
             try {
                 try {
+                    //申请写锁，根据brokerAddress移除broker
                     this.lock.writeLock().lockInterruptibly();
                     this.brokerLiveTable.remove(brokerAddrFound);
                     this.filterServerTable.remove(brokerAddrFound);
                     String brokerNameFound = null;
                     boolean removeBrokerName = false;
+                    //维护itBrokerAddrTable，遍历找到具体的broker
                     Iterator<Entry<String, BrokerData>> itBrokerAddrTable =
                         this.brokerAddrTable.entrySet().iterator();
                     while (itBrokerAddrTable.hasNext() && (null == brokerNameFound)) {
                         BrokerData brokerData = itBrokerAddrTable.next().getValue();
-
                         Iterator<Entry<Long, String>> it = brokerData.getBrokerAddrs().entrySet().iterator();
                         while (it.hasNext()) {
                             Entry<Long, String> entry = it.next();
                             Long brokerId = entry.getKey();
                             String brokerAddr = entry.getValue();
+                            //地址匹配则移除掉brokerAddrTable中的broker
                             if (brokerAddr.equals(brokerAddrFound)) {
                                 brokerNameFound = brokerData.getBrokerName();
                                 it.remove();
@@ -502,7 +507,7 @@ public class RouteInfoManager {
                                 break;
                             }
                         }
-
+                        //如果brokerAddrs集合为空，则移除该条目（相当于文件夹里没有文件了，则删除该文件夹）
                         if (brokerData.getBrokerAddrs().isEmpty()) {
                             removeBrokerName = true;
                             itBrokerAddrTable.remove();
@@ -512,11 +517,13 @@ public class RouteInfoManager {
                     }
 
                     if (brokerNameFound != null && removeBrokerName) {
+                        //遍历集群
                         Iterator<Entry<String, Set<String>>> it = this.clusterAddrTable.entrySet().iterator();
                         while (it.hasNext()) {
                             Entry<String, Set<String>> entry = it.next();
                             String clusterName = entry.getKey();
                             Set<String> brokerNames = entry.getValue();
+                            //根据brokerName去除集群中对应的broker
                             boolean removed = brokerNames.remove(brokerNameFound);
                             if (removed) {
                                 log.info("remove brokerName[{}], clusterName[{}] from clusterAddrTable, because channel destroyed",
@@ -532,7 +539,7 @@ public class RouteInfoManager {
                             }
                         }
                     }
-
+                    //根据removeBrokerName遍历所有的主题队列，如果哪个队列包括了该broker，则一并移除。
                     if (removeBrokerName) {
                         Iterator<Entry<String, List<QueueData>>> itTopicQueueTable =
                             this.topicQueueTable.entrySet().iterator();
@@ -559,6 +566,7 @@ public class RouteInfoManager {
                         }
                     }
                 } finally {
+                    //释放锁
                     this.lock.writeLock().unlock();
                 }
             } catch (Exception e) {
