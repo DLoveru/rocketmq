@@ -111,10 +111,12 @@ public class RouteInfoManager {
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
+                //加读写锁，防止并发修改路由表
                 this.lock.writeLock().lockInterruptibly();
-
+                //首先判断broker所属集群是否存在
                 Set<String> brokerNames = this.clusterAddrTable.get(clusterName);
                 if (null == brokerNames) {
+                    //不存在就加进去
                     brokerNames = new HashSet<String>();
                     this.clusterAddrTable.put(clusterName, brokerNames);
                 }
@@ -124,6 +126,7 @@ public class RouteInfoManager {
 
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
                 if (null == brokerData) {
+                    //判断是不是第一次注册，如果是，则加入到broker地址表中
                     registerFirst = true;
                     brokerData = new BrokerData(clusterName, brokerName, new HashMap<Long, String>());
                     this.brokerAddrTable.put(brokerName, brokerData);
@@ -131,6 +134,7 @@ public class RouteInfoManager {
                 Map<Long, String> brokerAddrsMap = brokerData.getBrokerAddrs();
                 //Switch slave to master: first remove <1, IP:PORT> in namesrv, then add <0, IP:PORT>
                 //The same IP:PORT must only have one record in brokerAddrTable
+                //从节点切换到主节点：移除brokerId = 1的，加入brokerId = 0;
                 Iterator<Entry<Long, String>> it = brokerAddrsMap.entrySet().iterator();
                 while (it.hasNext()) {
                     Entry<Long, String> item = it.next();
@@ -144,18 +148,19 @@ public class RouteInfoManager {
 
                 if (null != topicConfigWrapper
                     && MixAll.MASTER_ID == brokerId) {
+                    //如果broker是master，且路由配置发生改变或者是第一次注册，则需要创建或更新路由元数据，并填充到QueueData当中
                     if (this.isBrokerTopicConfigChanged(brokerAddr, topicConfigWrapper.getDataVersion())
                         || registerFirst) {
                         ConcurrentMap<String, TopicConfig> tcTable =
                             topicConfigWrapper.getTopicConfigTable();
                         if (tcTable != null) {
-                            for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
+                            for (Entry<String, TopicConfig> entry : tcTable.entrySet()) {
                                 this.createAndUpdateQueueData(brokerName, entry.getValue());
                             }
                         }
                     }
                 }
-
+                //更新 BrokerLivelnfo ，存活 Broker 信息表， BrokeLivelnfo 是执行路由删除的重要依据
                 BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr,
                     new BrokerLiveInfo(
                         System.currentTimeMillis(),
@@ -185,6 +190,7 @@ public class RouteInfoManager {
                     }
                 }
             } finally {
+                //释放锁
                 this.lock.writeLock().unlock();
             }
         } catch (Exception e) {
@@ -614,7 +620,7 @@ public class RouteInfoManager {
         try {
             try {
                 this.lock.readLock().lockInterruptibly();
-                for (Map.Entry<String, Set<String>> entry : clusterAddrTable.entrySet()) {
+                for (Entry<String, Set<String>> entry : clusterAddrTable.entrySet()) {
                     topicList.getTopicList().add(entry.getKey());
                     topicList.getTopicList().addAll(entry.getValue());
                 }
