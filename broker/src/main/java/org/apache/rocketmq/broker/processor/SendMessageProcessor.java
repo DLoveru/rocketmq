@@ -383,7 +383,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         }
 
         response.setCode(-1);
-        //1.进行消息检查
+        //1.进行消息检查（检查broker是否有写权限，主题是否可以发送消息，NameServer存储的主题信息配置）
         super.msgCheck(ctx, requestHeader, response);
         if (response.getCode() != -1) {
             return response;
@@ -401,7 +401,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
         msgInner.setTopic(requestHeader.getTopic());
         msgInner.setQueueId(queueIdInt);
-        //如果消息重试次数大于允许的最大次数，则进入DLQ队列
+        //如果消息重试次数大于允许的最大次数，则进入DLQ队列（死信队列必考）
         if (!handleRetryAndDLQ(requestHeader, response, request, msgInner, topicConfig)) {
             return response;
         }

@@ -53,6 +53,7 @@ public class MQClientManager {
                 new MQClientInstance(clientConfig.cloneClientConfig(),
                     this.factoryIndexGenerator.getAndIncrement(), clientId, rpcHook);
             //putIfAbsent意思是如果不存在clientId就put一个新的，有的话就返回get(clientId）
+            //将当前生产者加入到MQClientInstance管理中
             MQClientInstance prev = this.factoryTable.putIfAbsent(clientId, instance);
             if (prev != null) {
                 instance = prev;

@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 package org.apache.rocketmq.common.message;
-
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,6 +37,16 @@ public class Message implements Serializable {
         this(topic, "", "", 0, body, true);
     }
 
+    /**
+     * message全局构造函数
+     * @param topic 主题
+     * @param tags 子主题
+     * @param keys message索引键，多个用空格隔开
+     * @param flag 消息标志
+     * @param body 消息体
+     * @param waitStoreMsgOK 消息发送时是否等消息存储完再返回
+     * 还有个delaymeLevel：消息延迟级别，用于定时消息和消息重试
+     */
     public Message(String topic, String tags, String keys, int flag, byte[] body, boolean waitStoreMsgOK) {
         this.topic = topic;
         this.flag = flag;
