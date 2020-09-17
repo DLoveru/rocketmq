@@ -65,40 +65,72 @@ import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
 public class DefaultMessageStore implements MessageStore {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
+    /**
+     * 消息存储配置属性
+     */
     private final MessageStoreConfig messageStoreConfig;
     // CommitLog
     private final CommitLog commitLog;
-
+    /**
+     * 消费队列注册表（每一个主题对应多个消息队列）
+     */
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
-
+    /**
+     *消息队列文件刷盘线程（重点）
+     */
     private final FlushConsumeQueueService flushConsumeQueueService;
-
+    /**
+     * 清空CommitLog服务
+     */
     private final CleanCommitLogService cleanCommitLogService;
-
+    /**
+     * 清空消息队列服务
+     */
     private final CleanConsumeQueueService cleanConsumeQueueService;
-
+    /**
+     * 索引文件实现类
+     */
     private final IndexService indexService;
-
+    /**
+     * MappedFile分配服务
+     */
     private final AllocateMappedFileService allocateMappedFileService;
-
+    /**
+     * CommitLog消息分发（重点）
+     */
     private final ReputMessageService reputMessageService;
-
+    /**
+     * 存储HA机制（重点）
+     */
     private final HAService haService;
-
+    /**
+     *定时消息服务
+     */
     private final ScheduleMessageService scheduleMessageService;
-
+    /**
+     * 存储统计服务
+     */
     private final StoreStatsService storeStatsService;
-
+    /**
+     * 临时存储池
+     */
     private final TransientStorePool transientStorePool;
 
     private final RunningFlags runningFlags = new RunningFlags();
     private final SystemClock systemClock = new SystemClock();
-
+    /**
+     * 定时存储线程池
+     */
     private final ScheduledExecutorService scheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread"));
     private final BrokerStatsManager brokerStatsManager;
+    /**
+     * 消息拉取-长连接轮询模式下-消息到达监视器
+     */
     private final MessageArrivingListener messageArrivingListener;
+    /**
+     * broker配置属性
+     */
     private final BrokerConfig brokerConfig;
 
     private volatile boolean shutdown = true;
